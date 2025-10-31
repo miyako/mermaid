@@ -1,0 +1,18 @@
+{
+  "name": "mermaid",
+  "description": "Tool to convert mermaid markdown to SVG",
+  "author": [
+    "Rinaldo Lee",
+    "Keisuke Miyako <keisuke.miyako@4D.com>"
+  ],
+  "license": "MIT",
+  "repository": "https://github.com/miyako/mermaid",
+  "version": "20.0.0",
+  "tool": {
+    "platform": "macos",
+    "branch": "20.x",
+    "version": "20.7",
+    "build": "latest",
+    "arch": "arm"
+  }
+}
