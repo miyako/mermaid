@@ -24,4 +24,7 @@ Else
 	
 	$results:=$mermaid.render($tasks)
 	
+	//Folder(fk desktop folder).file("0.svg").setText($results[0])
+	//Folder(fk desktop folder).file("1.svg").setText($results[1])
+	
 End if 
