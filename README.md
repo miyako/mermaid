@@ -51,3 +51,13 @@ $text:=$worker.response
 
 > [!TIP]
 > whatever value you pass in `data` is returned in `context`.
+
+### server
+
+```4d
+var $mermaid : cs.mermaid.server
+$mermaid:=cs.mermaid.server.new()
+$mermaid.start(port: 8282)
+```
+
+`POST` a mermaid markdown to `/render`. If successful, `image/svg+xml` is returned.
