@@ -10,9 +10,9 @@ Tool to convert mermaid markdown to SVG (namespace: `mermaid`)
 
 There are `3` ways to use `mermaid`; atomic, asynchronous, or server.
 
-* atomic: A new instance of `headless_chrome` is created for each request. You can batch process a collection of markdown code in one call.
-* asynchronous: Same as atomic but a callback function is invoked on completion.
-* server: An HTTP server is started which keeps a mutex-guarded instance of `headless_chrome`. Each request process will process a single markdown.
+* **atomic**: A new instance of `headless_chrome` is created for each request. You can batch process a collection of markdown code in one call.
+* **asynchronous**: Same as atomic but a callback function is invoked on completion.
+* **server**: An HTTP server is started which keeps a mutex-guarded instance of `headless_chrome`. Each request process will process a single markdown.
 
 ### atomic
 
