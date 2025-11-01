@@ -83,6 +83,7 @@ Function render()
 		
 	var $request : 4D.HTTPRequest
 	$request:=4D.HTTPRequest.new("http://127.0.0.1:8282/render"; This)
+    This.Message:="Processing..."
 
 Function onResponse($request : 4D.HTTPRequest; $event : Object)
 	
