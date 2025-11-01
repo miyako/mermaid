@@ -25,9 +25,13 @@ use std::path::PathBuf;
 use tracing::{error, info};
 use tracing_subscriber::{EnvFilter};
 use serde::Serialize;
+// use serde_json::Value;
 use escape_string::escape;
 use unescape::unescape;
 use std::sync::Mutex;
+// use std::time::Duration;
+// use std::collections::HashMap;
+// use headless_chrome::protocol::cdp::Runtime::RemoteObject;
 
 #[derive(Debug, Serialize)]
 struct ErrorResponse {
@@ -205,11 +209,11 @@ async fn post_render(
     // let mermaid = state.mermaid;  
     let text = payload.text;  
     let format = payload.format.unwrap_or("svg".to_string());  
-    let x = 0.0;
-    let y = 0.0;
-    let width;// = payload.width.unwrap_or(2048.0);
-    let height;// = payload.height.unwrap_or(2048.0);
-    let scale = payload.scale.unwrap_or(1.0);
+    // let x = 0.0;
+    // let y = 0.0;
+    // let width;// = payload.width.unwrap_or(2048.0);
+    // let height;// = payload.height.unwrap_or(2048.0);
+    // let scale = payload.scale.unwrap_or(1.0);
     
     // let browser = &state.browser;
     let mermaid_js = &state.mermaid_js;
@@ -272,9 +276,7 @@ async fn post_render(
     let data_url_html = format!("data:text/html;charset=utf-8,{}", html_payload);
     
     if let Err(_) = tab.navigate_to(&data_url_html) {
-        let _guard = scopeguard::guard(tab, |t| {
-            let _ = t.close(false);
-        });
+        let _ = tab.close(false);        
         let err = ErrorResponse {
             message: "failed to navigate to tab for diagram".to_string(),
         }; 
@@ -307,9 +309,7 @@ async fn post_render(
     */
     
     if let Err(_) = tab.evaluate(mermaid_js, false) {
-        let _guard = scopeguard::guard(tab, |t| {
-            let _ = t.close(false);
-        });
+        let _ = tab.close(false);
         let err = ErrorResponse {
             message: "failed to wait until navigated to tab for diagram".to_string(),
         }; 
@@ -319,9 +319,7 @@ async fn post_render(
     let data = match tab.evaluate(&format!("render('{}')", escape(&text)), true) {
         Ok(t) => t,
         Err(_) => {
-            let _guard = scopeguard::guard(tab, |t| {
-                let _ = t.close(false);
-            });
+            let _ = tab.close(false);
             let err = ErrorResponse {
                 message: "failed to evaluate diagram".to_string(),
             }; 
@@ -339,9 +337,7 @@ async fn post_render(
     }
     
     if diagram == "" {
-        let _guard = scopeguard::guard(tab, |t| {
-            let _ = t.close(false);
-        });
+        let _ = tab.close(false);
         let err = ErrorResponse {
             message: "render failed".to_string(),
         }; 
@@ -353,9 +349,7 @@ async fn post_render(
     let data_url = format!("data:image/svg+xml,{}", urlencoding::encode(&diagram));
     
     if let Err(_) = tab.navigate_to(&data_url) {
-        let _guard = scopeguard::guard(tab, |t| {
-            let _ = t.close(false);
-        });
+        let _ = tab.close(false);
         let err = ErrorResponse {
             message: "failed to navigate to tab for screenshot".to_string(),
         }; 
@@ -363,43 +357,38 @@ async fn post_render(
     }
     
     if let Err(_) = tab.wait_until_navigated() {
-        let _guard = scopeguard::guard(tab, |t| {
-            let _ = t.close(false);
-        });
+        let _ = tab.close(false);
         let err = ErrorResponse {
             message: "failed to wait until navigated to tab for screenshot".to_string(),
         }; 
         return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
     }
-        
-    let metrics = match tab.evaluate(
-        "({
-            width: document.documentElement.scrollWidth,
-            height: document.documentElement.scrollHeight
-        })",
-        false,
-    ) {
-        Ok(metrics) => metrics,
-        Err(_) => {
-            let _guard = scopeguard::guard(tab, |t| {
-                let _ = t.close(false);
-            });
-            let err = ErrorResponse {
-                message: "failed to resize viewport for screenshot".to_string(),
-            }; 
-            return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
-        }
-    };
-    
-    let size = metrics
-    .value
-    .unwrap()
-    .as_object()
-    .unwrap()
-    .clone();
-    
-    width = (size["width"].as_f64().unwrap() as u32).into();
-    height = (size["height"].as_f64().unwrap() as u32).into();
+
+   let body_box = match tab.wait_for_element("#div") {
+       Ok(body) => match body.get_box_model() {
+           Ok(box_model) => box_model,
+           Err(_) => {
+               let _ = tab.close(false);
+               let err = ErrorResponse {
+                   message: "failed to get body box model".to_string(),
+               };
+               return (StatusCode::BAD_REQUEST, Json(err)).into_response();
+           }
+       },
+       Err(_) => {
+           let _ = tab.close(false);
+           let err = ErrorResponse {
+               message: "body element not found".to_string(),
+           };
+           return (StatusCode::BAD_REQUEST, Json(err)).into_response();
+       }
+   };
+   
+    let width = body_box.width as f64;
+    let height = body_box.height as f64;
+    let x = 0.0;
+    let y = 0.0;
+    let scale = payload.scale.unwrap_or(1.0);
     
     let viewport = Viewport {
         x: x,            // left offset
@@ -412,9 +401,7 @@ async fn post_render(
     let png_data = match tab.capture_screenshot(CaptureScreenshotFormatOption::Png, None, Some(viewport), true) {
         Ok(data) => data,
         Err(_) => {
-            let _guard = scopeguard::guard(tab, |t| {
-                let _ = t.close(false);
-            });
+            let _ = tab.close(false);
             let err = ErrorResponse {
                 message: "failed to capture screenshot".to_string(),
             }; 
@@ -422,21 +409,18 @@ async fn post_render(
         }
     };
     
-    let _guard = scopeguard::guard(tab, |t| {
-        let _ = t.close(false);
-    });
+    let _ = tab.close(false);
+    
     return Response::builder()
        .status(StatusCode::OK)
        .header(header::CONTENT_TYPE, "image/png")
        .body(boxed(Full::from(png_data))) 
        .unwrap()
-       .into_response();        
+       .into_response();               
         
     }else{
         
-        let _guard = scopeguard::guard(tab, |t| {
-            let _ = t.close(false);
-        });
+        let _ = tab.close(false);
         return Response::builder()
            .status(StatusCode::OK)
            .header(header::CONTENT_TYPE, "image/svg+xml")
