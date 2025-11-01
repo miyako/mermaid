@@ -1,11 +1,11 @@
 use axum::{
-    extract::{State},
+    // extract::{State},
     http::{StatusCode, header},
     response::{Response, IntoResponse},
     routing::{post},
     Json, Router,
 };
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr/*, sync::Arc*/};
 use tower_http::{
     compression::CompressionLayer,
     cors::{CorsLayer, Any},
@@ -50,10 +50,10 @@ struct Cli {
     server: bool,
 }
 
-#[derive(Clone)]
-struct AppState {
-    mermaid: Arc<Mermaid>,  
-}
+// #[derive(Clone)]
+// struct AppState {
+//     mermaid: Arc<Mermaid>,  
+// }
 
 fn write_output(cli: &Cli, json: &String) -> anyhow::Result<()> {
         match &cli.output {
@@ -74,8 +74,8 @@ fn write_output(cli: &Cli, json: &String) -> anyhow::Result<()> {
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     
-    let mermaid: Arc<Mermaid> = Arc::new(Mermaid::new().unwrap());
-    let state = AppState { mermaid: mermaid.clone() };
+    // let mermaid: Arc<Mermaid> = Arc::new(Mermaid::new().unwrap());
+    // let state = AppState { mermaid: mermaid.clone() };
 
     if cli.server {
         
@@ -89,7 +89,7 @@ async fn main() -> anyhow::Result<()> {
         // Build router
         let app = Router::new()
             .route("/render", post(post_render))
-            .with_state(state.clone())
+            // .with_state(state.clone())
             // Middlewares
             .layer(TraceLayer::new_for_http())
             .layer(CompressionLayer::new())
@@ -128,7 +128,7 @@ async fn main() -> anyhow::Result<()> {
         let _ = shutdown_tx.send(());
         
     }else {
-
+        let mermaid = Mermaid::new().unwrap();
         // Read Markdown content from file or stdin
         let text = match &cli.input {
             Some(path) => fs::read_to_string(path)?,
@@ -167,12 +167,12 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn post_render(
-    State(state): State<AppState>,
+    // State(state): State<AppState>,
     text: String,
 ) -> impl IntoResponse {
 
-    let mermaid = state.mermaid;    
-
+    // let mermaid = state.mermaid;    
+    let mermaid = Mermaid::new().unwrap();
     let diagram;
     
     match mermaid.render(&text) {
