@@ -1015,6 +1015,7 @@ dependencies = [
  "hyper",
  "mermaid-rs",
  "regex",
+ "scopeguard",
  "serde",
  "serde_json",
  "tokio",

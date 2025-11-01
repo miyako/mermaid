@@ -217,16 +217,43 @@ async fn post_render(
     // let html_payload = include_str!("../payload/index.html");
     let html_payload = &state.html_payload;
     
+    /*
+    let browser: Arc<Mutex<Browser>> = Arc::new(Mutex::new(Browser::default()?));
+    */
+    
     let tab = {
         // Lock only while creating a new tab
-        let browser = state.browser.lock().unwrap();
-        match browser.new_tab() {
+        let mut browser_guard = state.browser.lock().unwrap();
+        match browser_guard.new_tab() {
             Ok(tab) => tab,
             Err(_) => {
-                let err = ErrorResponse {
-                    message: "failed to open tab for diagram".to_string(),
-                };
-                return (StatusCode::BAD_REQUEST, Json(err)).into_response();
+                
+                eprintln!("⚠️ Browser tab creation failed, recreating browser...");
+
+                // Try to create a new browser instance
+                match Browser::default() {
+                    Ok(new_browser) => {
+                        // Replace the old browser in state
+                        *browser_guard = new_browser;
+                
+                        // Try again
+                        match browser_guard.new_tab() {
+                            Ok(tab) => tab,
+                            Err(_) => {
+                                let err = ErrorResponse {
+                                    message: "Failed to create tab even after browser restart".into(),
+                                };
+                                return (StatusCode::BAD_REQUEST, Json(err)).into_response();
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        let err = ErrorResponse {
+                            message: "Failed to restart browser".into(),
+                        };
+                        return (StatusCode::BAD_REQUEST, Json(err)).into_response();
+                    }
+                }
             }
         }
     }; // <- mutex guard dropped here
@@ -245,6 +272,9 @@ async fn post_render(
     let data_url_html = format!("data:text/html;charset=utf-8,{}", html_payload);
     
     if let Err(_) = tab.navigate_to(&data_url_html) {
+        let _guard = scopeguard::guard(tab, |t| {
+            let _ = t.close(false);
+        });
         let err = ErrorResponse {
             message: "failed to navigate to tab for diagram".to_string(),
         }; 
@@ -277,16 +307,21 @@ async fn post_render(
     */
     
     if let Err(_) = tab.evaluate(mermaid_js, false) {
+        let _guard = scopeguard::guard(tab, |t| {
+            let _ = t.close(false);
+        });
         let err = ErrorResponse {
             message: "failed to wait until navigated to tab for diagram".to_string(),
         }; 
         return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
     }
     
-    
     let data = match tab.evaluate(&format!("render('{}')", escape(&text)), true) {
         Ok(t) => t,
         Err(_) => {
+            let _guard = scopeguard::guard(tab, |t| {
+                let _ = t.close(false);
+            });
             let err = ErrorResponse {
                 message: "failed to evaluate diagram".to_string(),
             }; 
@@ -304,6 +339,9 @@ async fn post_render(
     }
     
     if diagram == "" {
+        let _guard = scopeguard::guard(tab, |t| {
+            let _ = t.close(false);
+        });
         let err = ErrorResponse {
             message: "render failed".to_string(),
         }; 
@@ -315,6 +353,9 @@ async fn post_render(
     let data_url = format!("data:image/svg+xml,{}", urlencoding::encode(&diagram));
     
     if let Err(_) = tab.navigate_to(&data_url) {
+        let _guard = scopeguard::guard(tab, |t| {
+            let _ = t.close(false);
+        });
         let err = ErrorResponse {
             message: "failed to navigate to tab for screenshot".to_string(),
         }; 
@@ -322,6 +363,9 @@ async fn post_render(
     }
     
     if let Err(_) = tab.wait_until_navigated() {
+        let _guard = scopeguard::guard(tab, |t| {
+            let _ = t.close(false);
+        });
         let err = ErrorResponse {
             message: "failed to wait until navigated to tab for screenshot".to_string(),
         }; 
@@ -339,6 +383,9 @@ async fn post_render(
     let png_data = match tab.capture_screenshot(CaptureScreenshotFormatOption::Png, None, Some(viewport), true) {
         Ok(data) => data,
         Err(_) => {
+            let _guard = scopeguard::guard(tab, |t| {
+                let _ = t.close(false);
+            });
             let err = ErrorResponse {
                 message: "failed to capture screenshot".to_string(),
             }; 
@@ -346,6 +393,9 @@ async fn post_render(
         }
     };
     
+    let _guard = scopeguard::guard(tab, |t| {
+        let _ = t.close(false);
+    });
     return Response::builder()
        .status(StatusCode::OK)
        .header(header::CONTENT_TYPE, "image/png")
@@ -354,6 +404,10 @@ async fn post_render(
        .into_response();        
         
     }else{
+        
+        let _guard = scopeguard::guard(tab, |t| {
+            let _ = t.close(false);
+        });
         return Response::builder()
            .status(StatusCode::OK)
            .header(header::CONTENT_TYPE, "image/svg+xml")
