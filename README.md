@@ -100,5 +100,3 @@ Function onResponse($request : 4D.HTTPRequest; $event : Object)
 		End if 
 	End if
 ```
-
-<img width="1213" height="797" alt="" src="https://github.com/user-attachments/assets/b9b8fb4d-51b1-400d-be58-6e0dccdce35f" />
