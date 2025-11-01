@@ -44,7 +44,7 @@ $tasks.push({file: $file; data: Folder(fk desktop folder).file("2.svg")})
 $mermaid.render($tasks; Formula(onResponse))
 ```
 
-the formula should have the following signature:
+The callback formula should have the following signature:
 
 ```4d
 #DECLARE($worker : 4D.SystemWorker; $params : Object)
