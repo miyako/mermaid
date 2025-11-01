@@ -27,6 +27,7 @@ use tracing_subscriber::{EnvFilter};
 use serde::Serialize;
 use escape_string::escape;
 use unescape::unescape;
+use std::sync::Mutex;
 
 #[derive(Debug, Serialize)]
 struct ErrorResponse {
@@ -69,7 +70,7 @@ struct Cli {
 
 // #[derive(Clone)]
 struct AppState {
-    browser: Arc<Browser>,  
+    browser: Arc<Mutex<Browser>>,  
     mermaid_js: Arc<&'static str>,
     html_payload: Arc<&'static str>,
 }
@@ -94,7 +95,8 @@ async fn main() -> anyhow::Result<()> {
     
     let cli = Cli::parse();
     
-    let browser: Arc<Browser> = Browser::default()?.into();   
+    let browser: Arc<Mutex<Browser>> = Arc::new(Mutex::new(Browser::default()?));
+    // let browser: Arc<Browser> = Browser::default()?.into();   
     let _mermaid_js: &'static str = include_str!("../payload/mermaid.min.js");
     let mermaid_js: Arc<&'static str> = Arc::new(_mermaid_js);
     let _html_payload: &'static str = include_str!("../payload/index.html");
@@ -209,27 +211,42 @@ async fn post_render(
     let height = payload.height.unwrap_or(2048.0);
     let scale = payload.scale.unwrap_or(2.0);
     
-    let browser = &state.browser;
+    // let browser = &state.browser;
     let mermaid_js = &state.mermaid_js;
     // let mermaid_js = include_str!("../payload/mermaid.min.js");
     // let html_payload = include_str!("../payload/index.html");
     let html_payload = &state.html_payload;
     
+    let tab = {
+        // Lock only while creating a new tab
+        let browser = state.browser.lock().unwrap();
+        match browser.new_tab() {
+            Ok(tab) => tab,
+            Err(_) => {
+                let err = ErrorResponse {
+                    message: "failed to open tab for diagram".to_string(),
+                };
+                return (StatusCode::BAD_REQUEST, Json(err)).into_response();
+            }
+        }
+    }; // <- mutex guard dropped here
+    
+    /*
     let tab = match browser.new_tab() {
         Ok(t) => t,
         Err(_) => {
             let err = ErrorResponse {
-                message: "failed to open tab".to_string(),
+                message: "failed to open tab for diagram".to_string(),
             }; 
             return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
         }
     };
-    
+    */
     let data_url_html = format!("data:text/html;charset=utf-8,{}", html_payload);
     
     if let Err(_) = tab.navigate_to(&data_url_html) {
         let err = ErrorResponse {
-            message: "failed to navigate to tab".to_string(),
+            message: "failed to navigate to tab for diagram".to_string(),
         }; 
         return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
     }
@@ -247,6 +264,7 @@ async fn post_render(
     }
     */
     
+    /*
     let tab = match browser.new_tab() {
         Ok(t) => t,
         Err(_) => {
@@ -256,13 +274,15 @@ async fn post_render(
             return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
         }
     };
+    */
     
     if let Err(_) = tab.evaluate(mermaid_js, false) {
         let err = ErrorResponse {
-            message: "failed to wait until navigated".to_string(),
+            message: "failed to wait until navigated to tab for diagram".to_string(),
         }; 
         return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
     }
+    
     
     let data = match tab.evaluate(&format!("render('{}')", escape(&text)), true) {
         Ok(t) => t,
@@ -296,14 +316,14 @@ async fn post_render(
     
     if let Err(_) = tab.navigate_to(&data_url) {
         let err = ErrorResponse {
-            message: "failed to navigate to tab".to_string(),
+            message: "failed to navigate to tab for screenshot".to_string(),
         }; 
         return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
     }
     
     if let Err(_) = tab.wait_until_navigated() {
         let err = ErrorResponse {
-            message: "failed to wait until navigated".to_string(),
+            message: "failed to wait until navigated to tab for screenshot".to_string(),
         }; 
         return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
     }
