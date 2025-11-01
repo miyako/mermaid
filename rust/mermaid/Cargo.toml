@@ -16,3 +16,5 @@ tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 tower-http = { version = "0.3", features = ["trace", "cors", "compression-gzip"] }
 axum = "0.6"
 hyper = "0.14"
+headless_chrome = "1.0.18" 
+urlencoding = "2.1" 

@@ -1,5 +1,6 @@
 use axum::{
     // extract::{State},
+    body::{boxed, Full},
     http::{StatusCode, header},
     response::{Response, IntoResponse},
     routing::{post},
@@ -11,13 +12,14 @@ use tower_http::{
     cors::{CorsLayer, Any},
     trace::TraceLayer,
 };
+use headless_chrome::protocol::cdp::Page::Viewport;
+use headless_chrome::{Browser, protocol::cdp::Page::CaptureScreenshotFormatOption}; 
 use clap::Parser;
 use mermaid_rs::Mermaid;
 use std::fs;
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
-
 use tracing::{error, info};
 use tracing_subscriber::{EnvFilter};
 use serde::Serialize;
@@ -25,6 +27,17 @@ use serde::Serialize;
 #[derive(Debug, Serialize)]
 struct ErrorResponse {
     message: String,
+}
+
+#[derive(serde::Deserialize)]
+struct RenderRequest {
+    text: String,
+    format: Option<String>,
+    x: Option<f64>,
+    y: Option<f64>,
+    width: Option<f64>,
+    height: Option<f64>,
+    scale: Option<f64>,
 }
 
 /// CLI to convert Mermaid diagrams in Markdown to SVG
@@ -168,10 +181,19 @@ async fn main() -> anyhow::Result<()> {
 
 async fn post_render(
     // State(state): State<AppState>,
-    text: String,
+    // text: String,
+    Json(payload): Json<RenderRequest>,
 ) -> impl IntoResponse {
 
-    // let mermaid = state.mermaid;    
+    // let mermaid = state.mermaid;  
+    let text = payload.text;  
+    let format = payload.format.unwrap_or("svg".to_string());  
+    let x = payload.x.unwrap_or(0.0);
+    let y = payload.y.unwrap_or(0.0);
+    let width = payload.width.unwrap_or(2048.0);
+    let height = payload.height.unwrap_or(2048.0);
+    let scale = payload.scale.unwrap_or(2.0);
+    
     let mermaid = Mermaid::new().unwrap();
     let diagram;
     
@@ -186,11 +208,75 @@ async fn post_render(
         }; 
         return (StatusCode::BAD_REQUEST, Json(err)).into_response();      
     }
+    
+    if format == "png" {
 
+    let browser = match Browser::default() {
+        Ok(b) => b,
+        Err(_) => {
+            let err = ErrorResponse {
+                message: "failed to launch browser".to_string(),
+            }; 
+            return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
+        }
+    };
+    
+    let tab = match browser.new_tab() {
+        Ok(t) => t,
+        Err(_) => {
+            let err = ErrorResponse {
+                message: "failed to open tab".to_string(),
+            }; 
+            return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
+        }
+    };
+    
+    let data_url = format!("data:image/svg+xml,{}", urlencoding::encode(&diagram));
+    
+    if let Err(_) = tab.navigate_to(&data_url) {
+        let err = ErrorResponse {
+            message: "failed to navigate to tab".to_string(),
+        }; 
+        return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
+    }
+    
+    if let Err(_) = tab.wait_until_navigated() {
+        let err = ErrorResponse {
+            message: "failed to wait until navigated".to_string(),
+        }; 
+        return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
+    }
+    
+    let viewport = Viewport {
+        x: x,            // left offset
+        y: y,            // top offset
+        width: width,     // width of capture area in pixels
+        height: height,     // height of capture area in pixels
+        scale: scale,        // scaling factor (1.0 = 1:1, >1 = higher DPI)
+    };
+    
+    let png_data = match tab.capture_screenshot(CaptureScreenshotFormatOption::Png, None, Some(viewport), true) {
+        Ok(data) => data,
+        Err(_) => {
+            let err = ErrorResponse {
+                message: "failed to capture screenshot".to_string(),
+            }; 
+            return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
+        }
+    };
+    
     return Response::builder()
        .status(StatusCode::OK)
-       .header(header::CONTENT_TYPE, "image/svg+xml")
-       .body(diagram).unwrap()
-       .into_response();
-  
+       .header(header::CONTENT_TYPE, "image/png")
+       .body(boxed(Full::from(png_data))) 
+       .unwrap()
+       .into_response();        
+        
+    }else{
+        return Response::builder()
+           .status(StatusCode::OK)
+           .header(header::CONTENT_TYPE, "image/svg+xml")
+           .body(diagram).unwrap()
+           .into_response();
+    }  
 }
