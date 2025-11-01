@@ -10,3 +10,9 @@ mermaid-rs = "0.1.1"  # latest version
 anyhow = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+tower-http = { version = "0.3", features = ["trace", "cors", "compression-gzip"] }
+axum = "0.6"
+hyper = "0.14"
