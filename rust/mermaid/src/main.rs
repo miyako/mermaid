@@ -38,10 +38,10 @@ struct ErrorResponse {
 struct RenderRequest {
     text: String,
     format: Option<String>,
-    x: Option<f64>,
-    y: Option<f64>,
-    width: Option<f64>,
-    height: Option<f64>,
+    // x: Option<f64>,
+    // y: Option<f64>,
+    // width: Option<f64>,
+    // height: Option<f64>,
     scale: Option<f64>,
 }
 
@@ -205,11 +205,11 @@ async fn post_render(
     // let mermaid = state.mermaid;  
     let text = payload.text;  
     let format = payload.format.unwrap_or("svg".to_string());  
-    let x = payload.x.unwrap_or(0.0);
-    let y = payload.y.unwrap_or(0.0);
-    let width = payload.width.unwrap_or(2048.0);
-    let height = payload.height.unwrap_or(2048.0);
-    let scale = payload.scale.unwrap_or(2.0);
+    let x = 0.0;
+    let y = 0.0;
+    let width;// = payload.width.unwrap_or(2048.0);
+    let height;// = payload.height.unwrap_or(2048.0);
+    let scale = payload.scale.unwrap_or(1.0);
     
     // let browser = &state.browser;
     let mermaid_js = &state.mermaid_js;
@@ -371,6 +371,35 @@ async fn post_render(
         }; 
         return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
     }
+        
+    let metrics = match tab.evaluate(
+        "({
+            width: document.documentElement.scrollWidth,
+            height: document.documentElement.scrollHeight
+        })",
+        false,
+    ) {
+        Ok(metrics) => metrics,
+        Err(_) => {
+            let _guard = scopeguard::guard(tab, |t| {
+                let _ = t.close(false);
+            });
+            let err = ErrorResponse {
+                message: "failed to resize viewport for screenshot".to_string(),
+            }; 
+            return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
+        }
+    };
+    
+    let size = metrics
+    .value
+    .unwrap()
+    .as_object()
+    .unwrap()
+    .clone();
+    
+    width = (size["width"].as_f64().unwrap() as u32).into();
+    height = (size["height"].as_f64().unwrap() as u32).into();
     
     let viewport = Viewport {
         x: x,            // left offset
