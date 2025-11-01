@@ -16,6 +16,20 @@ Function terminate()
 	
 	This:C1470.controller.terminate()
 	
+Function start($option : Object) : 4D:C1709.SystemWorker
+	
+	var $command : Text
+	$command:=This:C1470.escape(This:C1470.executablePath)
+	
+	$command+=" server "
+	
+	If (Value type:C1509($option.port)=Is real:K8:4) && ($option.port#0)
+		$command+=" --port "
+		$command+=String:C10($option.port)
+	End if 
+	
+	return This:C1470.controller.execute($command; Null:C1517; $option.data).worker
+	
 Function render($option : Variant; $formula : 4D:C1709.Function) : Collection
 	
 	var $stdOut; $isStream; $isAsync : Boolean
