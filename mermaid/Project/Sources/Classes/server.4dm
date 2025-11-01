@@ -17,8 +17,8 @@ Function start($option : Object)
 	
 Function _start($option : Object; $signal : 4D:C1709.Signal)
 	
-	var $mermaid : cs:C1710._mermaid
-	$mermaid:=cs:C1710._mermaid.new()
+	var $mermaid : cs:C1710.mermaid
+	$mermaid:=cs:C1710.mermaid.new()
 	
 	If (OB Instance of:C1731(__WORKER__; 4D:C1709.SystemWorker)) && (Not:C34(__WORKER__.terminated))
 		//already started
