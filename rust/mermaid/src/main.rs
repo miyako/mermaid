@@ -6,6 +6,8 @@ use axum::{
     routing::{post},
     Json, Router,
 };
+use axum::extract::State;
+use std::sync::Arc;
 use std::{net::SocketAddr/*, sync::Arc*/};
 use tower_http::{
     compression::CompressionLayer,
@@ -23,6 +25,8 @@ use std::path::PathBuf;
 use tracing::{error, info};
 use tracing_subscriber::{EnvFilter};
 use serde::Serialize;
+use escape_string::escape;
+use unescape::unescape;
 
 #[derive(Debug, Serialize)]
 struct ErrorResponse {
@@ -64,9 +68,11 @@ struct Cli {
 }
 
 // #[derive(Clone)]
-// struct AppState {
-//     mermaid: Arc<Mermaid>,  
-// }
+struct AppState {
+    browser: Arc<Browser>,  
+    mermaid_js: Arc<&'static str>,
+    html_payload: Arc<&'static str>,
+}
 
 fn write_output(cli: &Cli, json: &String) -> anyhow::Result<()> {
         match &cli.output {
@@ -85,10 +91,20 @@ fn write_output(cli: &Cli, json: &String) -> anyhow::Result<()> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    
     let cli = Cli::parse();
     
-    // let mermaid: Arc<Mermaid> = Arc::new(Mermaid::new().unwrap());
-    // let state = AppState { mermaid: mermaid.clone() };
+    let browser: Arc<Browser> = Browser::default()?.into();   
+    let _mermaid_js: &'static str = include_str!("../payload/mermaid.min.js");
+    let mermaid_js: Arc<&'static str> = Arc::new(_mermaid_js);
+    let _html_payload: &'static str = include_str!("../payload/index.html");
+    let html_payload: Arc<&'static str> = Arc::new(_html_payload);
+     
+    let state = AppState { 
+        browser: browser, 
+        mermaid_js: mermaid_js,
+        html_payload: html_payload,
+     };
 
     if cli.server {
         
@@ -102,7 +118,7 @@ async fn main() -> anyhow::Result<()> {
         // Build router
         let app = Router::new()
             .route("/render", post(post_render))
-            // .with_state(state.clone())
+            .with_state(state.into())
             // Middlewares
             .layer(TraceLayer::new_for_http())
             .layer(CompressionLayer::new())
@@ -180,8 +196,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn post_render(
-    // State(state): State<AppState>,
-    // text: String,
+    State(state): State<Arc<AppState>>,
     Json(payload): Json<RenderRequest>,
 ) -> impl IntoResponse {
 
@@ -194,32 +209,11 @@ async fn post_render(
     let height = payload.height.unwrap_or(2048.0);
     let scale = payload.scale.unwrap_or(2.0);
     
-    let mermaid = Mermaid::new().unwrap();
-    let diagram;
-    
-    match mermaid.render(&text) {
-        Ok(svg) => diagram = svg,
-        Err(_) => diagram = String::new(),
-    }
-
-    if diagram == "" {
-        let err = ErrorResponse {
-            message: "render failed".to_string(),
-        }; 
-        return (StatusCode::BAD_REQUEST, Json(err)).into_response();      
-    }
-    
-    if format == "png" {
-
-    let browser = match Browser::default() {
-        Ok(b) => b,
-        Err(_) => {
-            let err = ErrorResponse {
-                message: "failed to launch browser".to_string(),
-            }; 
-            return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
-        }
-    };
+    let browser = &state.browser;
+    let mermaid_js = &state.mermaid_js;
+    // let mermaid_js = include_str!("../payload/mermaid.min.js");
+    // let html_payload = include_str!("../payload/index.html");
+    let html_payload = &state.html_payload;
     
     let tab = match browser.new_tab() {
         Ok(t) => t,
@@ -231,6 +225,73 @@ async fn post_render(
         }
     };
     
+    let data_url_html = format!("data:text/html;charset=utf-8,{}", html_payload);
+    
+    if let Err(_) = tab.navigate_to(&data_url_html) {
+        let err = ErrorResponse {
+            message: "failed to navigate to tab".to_string(),
+        }; 
+        return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
+    }
+    
+    // let tab = browser.new_tab()?;
+    // tab.evaluate(mermaid_js, false)?;
+    // let mermaid = Mermaid::new().unwrap();
+    
+    let diagram;
+    
+    /*
+    match mermaid.render(&text) {
+        Ok(svg) => diagram = svg,
+        Err(_) => diagram = String::new(),
+    }
+    */
+    
+    let tab = match browser.new_tab() {
+        Ok(t) => t,
+        Err(_) => {
+            let err = ErrorResponse {
+                message: "failed to open tab".to_string(),
+            }; 
+            return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
+        }
+    };
+    
+    if let Err(_) = tab.evaluate(mermaid_js, false) {
+        let err = ErrorResponse {
+            message: "failed to wait until navigated".to_string(),
+        }; 
+        return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
+    }
+    
+    let data = match tab.evaluate(&format!("render('{}')", escape(&text)), true) {
+        Ok(t) => t,
+        Err(_) => {
+            let err = ErrorResponse {
+                message: "failed to evaluate diagram".to_string(),
+            }; 
+            return (StatusCode::BAD_REQUEST, Json(err)).into_response();  
+        }
+    };
+    
+    let string = data.value.unwrap_or_default().to_string();
+    let slice = unescape(string.trim_matches('"')).unwrap_or_default();
+    
+    if slice == "null" {
+        diagram = String::new();
+    } else {
+        diagram = slice.to_string();
+    }
+    
+    if diagram == "" {
+        let err = ErrorResponse {
+            message: "render failed".to_string(),
+        }; 
+        return (StatusCode::BAD_REQUEST, Json(err)).into_response();      
+    }
+    
+    if format == "png" {
+
     let data_url = format!("data:image/svg+xml,{}", urlencoding::encode(&diagram));
     
     if let Err(_) = tab.navigate_to(&data_url) {
