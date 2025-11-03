@@ -6,6 +6,8 @@
 # mermaid
 Tool to convert mermaid markdown to SVG (namespace: `mermaid`)
 
+Using [`headless_chromium`](https://docs.rs/headless_chrome/latest/headless_chrome/) crate; Google Chromium must be installed.
+
 ## usage
 
 There are `3` ways to use `mermaid`; atomic, asynchronous, or server.
