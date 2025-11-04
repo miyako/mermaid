@@ -72,6 +72,11 @@ Function render($option : Variant; $formula : 4D:C1709.Function) : Collection
 				$isStream:=True:C214
 		End case 
 		
+		If (Not:C34($stdOut))
+			$command+=" --output "
+			$command+=This:C1470.escape(This:C1470.expand($option.output).path)
+		End if 
+		
 		var $worker : 4D:C1709.SystemWorker
 		$worker:=This:C1470.controller.execute($command; $isStream ? $option.file : Null:C1517; $option.data).worker
 		
