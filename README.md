@@ -6,6 +6,8 @@
 # mermaid
 Tool to convert mermaid markdown to SVG (namespace: `mermaid`)
 
+Using [`headless_chromium`](https://docs.rs/headless_chrome/latest/headless_chrome/) crate; Google Chromium must be installed.
+
 ## usage
 
 There are `3` ways to use `mermaid`; atomic, asynchronous, or server.
@@ -76,27 +78,25 @@ If unsuccessful, error message in `application/json` is returned.
 ```4d
 Function render()
 	var $body : Object
-	$body:={format: "png"; scale: 2; width: 512; height: 512; x: 0; y: 0}
-	$body.text:="graph TD\n    A[Start] --> B{Is it working?}\n    B -- Yes --> C[Great!]\n    B -- No --> D[Check the code]\n    D --> B\n    C --> E[End]"
+	$body:={format: "png"; scale: 2}
+	$body.text:=OBJECT Get name(Object with focus)="Markdown" ? Get edited text : Form.Markdown
 		
 	This.body:=$body
 		
 	var $request : 4D.HTTPRequest
 	$request:=4D.HTTPRequest.new("http://127.0.0.1:8282/render"; This)
+    This.Message:="Processing..."
 
 Function onResponse($request : 4D.HTTPRequest; $event : Object)
 	
 	If (Form#Null)
 		If ($request.response.status=200)
-			
 			var $png : Picture
 			BLOB TO PICTURE($request.response.body; $png; ".png")
-			TRANSFORM PICTURE($png; Scale; \
-			$request.body.width/$request.body.scale; \
-			$request.body.height/$request.body.scale)
-			
 			Form.Diagram:=$png
-
+			This.Message:="Success!"
+		Else 
+			This.Message:="Error! "+$request.response.body.message
 		End if 
-	End if
+	End if 
 ```
