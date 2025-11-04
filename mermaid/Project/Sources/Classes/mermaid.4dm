@@ -84,10 +84,14 @@ Function render($option : Variant; $formula : 4D:C1709.Function) : Collection
 			$worker.wait()
 		End if 
 		
-		If ($stdOut) && (Not:C34($isAsync))
+		If (Not:C34($isAsync))
 			//%W-550.26
 			//%W-550.2
-			$results.push(This:C1470.controller.stdOut)
+			If ($stdOut)
+				$results.push(This:C1470.controller.stdOut)
+			Else 
+				$results.push(Null:C1517)
+			End if 
 			This:C1470.controller.clear()
 			//%W+550.2
 			//%W+550.26
@@ -95,6 +99,6 @@ Function render($option : Variant; $formula : 4D:C1709.Function) : Collection
 		
 	End for each 
 	
-	If ($stdOut) && (Not:C34($isAsync))
+	If (Not:C34($isAsync))
 		return $results
 	End if 
