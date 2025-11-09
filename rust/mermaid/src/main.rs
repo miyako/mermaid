@@ -276,7 +276,7 @@ async fn post_render(
     let data_url_html = format!("data:text/html;charset=utf-8,{}", html_payload);
     
     if let Err(_) = tab.navigate_to(&data_url_html) {
-        let _ = tab.close(false);        
+        let _ = tab.close(true);        
         let err = ErrorResponse {
             message: "failed to navigate to tab for diagram".to_string(),
         }; 
@@ -309,7 +309,7 @@ async fn post_render(
     */
     
     if let Err(_) = tab.evaluate(mermaid_js, false) {
-        let _ = tab.close(false);
+        let _ = tab.close(true);
         let err = ErrorResponse {
             message: "failed to wait until navigated to tab for diagram".to_string(),
         }; 
@@ -319,7 +319,7 @@ async fn post_render(
     let data = match tab.evaluate(&format!("render('{}')", escape(&text)), true) {
         Ok(t) => t,
         Err(_) => {
-            let _ = tab.close(false);
+            let _ = tab.close(true);
             let err = ErrorResponse {
                 message: "failed to evaluate diagram".to_string(),
             }; 
@@ -337,7 +337,7 @@ async fn post_render(
     }
     
     if diagram == "" {
-        let _ = tab.close(false);
+        let _ = tab.close(true);
         let err = ErrorResponse {
             message: "render failed".to_string(),
         }; 
@@ -349,7 +349,7 @@ async fn post_render(
     let data_url = format!("data:image/svg+xml,{}", urlencoding::encode(&diagram));
     
     if let Err(_) = tab.navigate_to(&data_url) {
-        let _ = tab.close(false);
+        let _ = tab.close(true);
         let err = ErrorResponse {
             message: "failed to navigate to tab for screenshot".to_string(),
         }; 
@@ -357,7 +357,7 @@ async fn post_render(
     }
     
     if let Err(_) = tab.wait_until_navigated() {
-        let _ = tab.close(false);
+        let _ = tab.close(true);
         let err = ErrorResponse {
             message: "failed to wait until navigated to tab for screenshot".to_string(),
         }; 
@@ -368,7 +368,7 @@ async fn post_render(
        Ok(body) => match body.get_box_model() {
            Ok(box_model) => box_model,
            Err(_) => {
-               let _ = tab.close(false);
+               let _ = tab.close(true);
                let err = ErrorResponse {
                    message: "failed to get body box model".to_string(),
                };
@@ -376,7 +376,7 @@ async fn post_render(
            }
        },
        Err(_) => {
-           let _ = tab.close(false);
+           let _ = tab.close(true);
            let err = ErrorResponse {
                message: "body element not found".to_string(),
            };
@@ -401,7 +401,7 @@ async fn post_render(
     let png_data = match tab.capture_screenshot(CaptureScreenshotFormatOption::Png, None, Some(viewport), true) {
         Ok(data) => data,
         Err(_) => {
-            let _ = tab.close(false);
+            let _ = tab.close(true);
             let err = ErrorResponse {
                 message: "failed to capture screenshot".to_string(),
             }; 
@@ -409,7 +409,7 @@ async fn post_render(
         }
     };
     
-    let _ = tab.close(false);
+    let _ = tab.close(true);
     
     return Response::builder()
        .status(StatusCode::OK)
@@ -420,7 +420,7 @@ async fn post_render(
         
     }else{
         
-        let _ = tab.close(false);
+        let _ = tab.close(true);
         return Response::builder()
            .status(StatusCode::OK)
            .header(header::CONTENT_TYPE, "image/svg+xml")
